@@ -1,6 +1,8 @@
 import os
 import requests
 from flask import Flask, jsonify, request
+import threading
+import time
 from dotenv import load_dotenv
 from flask_cors import CORS
 
@@ -14,6 +16,10 @@ RAWG_API_KEY = os.getenv("RAWG_API_KEY")
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 RAWG_BASE_URL = "https://api.rawg.io/api"
 
+SELF_PING_URL = "https://ggfilmes.onrender.com"
+PING_INTERVAL = 240  
+
+
 @app.route("/api/movies")
 def get_trending_movies():
     """Filmes em destaque"""
@@ -21,7 +27,7 @@ def get_trending_movies():
     params = {"api_key": TMDB_API_KEY, "language": "pt-BR"}
     r = requests.get(url, params=params)
     data = r.json()
-    return jsonify(data["results"])
+    return jsonify(data.get("results", []))
 
 
 @app.route("/api/games")
@@ -35,7 +41,7 @@ def get_trending_games():
     }
     r = requests.get(url, params=params)
     data = r.json()
-    return jsonify(data["results"])
+    return jsonify(data.get("results", []))
 
 
 @app.route("/api/search")
@@ -59,10 +65,29 @@ def search_all():
     })
 
 
+@app.route("/ping")
+def ping():
+    """Rota usada pelo auto-ping"""
+    return "pong"
+
+
 @app.route("/")
 def home():
     return jsonify({"message": "API Flask integrada com TMDB e RAWG rodando!"})
 
 
+def auto_ping():
+    """Função que faz ping periódico à própria URL"""
+    while True:
+        try:
+            res = requests.get(SELF_PING_URL)
+            print(f"[Auto-ping]: {res.text}")
+        except Exception as e:
+            print(f"[Auto-ping erro]: {e}")
+        time.sleep(PING_INTERVAL)
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    threading.Thread(target=auto_ping, daemon=True).start()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
